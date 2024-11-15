@@ -1,0 +1,86 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define PORT 8080
+#define BUFFER_SIZE 1024
+
+// Function to convert a decimal number to binary
+void decimal_to_binary(int num, char *binary) {
+    int index = 0;
+    if (num == 0) {
+        binary[index++] = '0';
+    } else {
+        while (num > 0) {
+            binary[index++] = (num % 2) + '0';
+            num = num / 2;
+        }
+    }
+    binary[index] = '\0';
+
+    // Reverse the string since binary is calculated from least significant bit
+    int start = 0;
+    int end = index - 1;
+    while (start < end) {
+        char temp = binary[start];
+        binary[start] = binary[end];
+        binary[end] = temp;
+        start++;
+        end--;
+    }
+}
+
+int main() {
+    int sockfd;
+    struct sockaddr_in my_addr, client_addr;
+    int addrlen = sizeof(struct sockaddr_in);
+    char buffer[BUFFER_SIZE] = {0};
+
+    // Create UDP socket
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+        perror("socket");
+        exit(1);
+    }
+
+    // Setup server address
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_port = htons(PORT);
+    my_addr.sin_addr.s_addr = INADDR_ANY;
+
+    // Bind the socket
+    if (bind(sockfd, (struct sockaddr *)&my_addr, addrlen) == -1) {
+        perror("bind");
+        exit(1);
+    }
+
+    printf("\nServer listening on port %d...\n", PORT);
+
+    while (1) {
+        memset(buffer, 0, BUFFER_SIZE);
+
+        // Receive the decimal number from the client
+        int valread = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&client_addr, &addrlen);
+        if (valread == -1) {
+            perror("recvfrom");
+            break;
+        }
+
+        int num = atoi(buffer);  // Convert the received string to an integer
+
+        // Convert the number to binary
+        char binary[BUFFER_SIZE];
+        decimal_to_binary(num, binary);
+
+        // Send the binary representation back to the client
+        snprintf(buffer, sizeof(buffer), "Decimal %d in binary is %s.", num, binary);
+        sendto(sockfd, buffer, strlen(buffer), 0, (struct sockaddr *)&client_addr, addrlen);
+    }
+
+    // Close socket
+    close(sockfd);
+    return 0;
+}
